@@ -2,25 +2,57 @@
 body {
     font-family: Arial, sans-serif;
     text-align: center;
-    background-color: #f0f2f5;
+    background-color: #645ccd;
 }
 
 .area-robo {
-    width: 400px;
-    height: 400px;
+    width: 350px;
+    height: 350px;
     border: 2px solid #333;
     background-color: white;
-    margin: 30px auto;
+    margin: 10px auto;
     position: relative;
+
+    transform: translate(20px, -15px);
 }
 
 .robo {
-    width: 50px;
+    width: 90px;
+    height: 70px;
+    position: absolute;
+    top: 165px;
+    left: 153px;
+}
+
+/* Corpo em formato de meia-lua */
+.corpo-robo {
+    width: 70px;
     height: 70px;
     background-color: #2878b5;
     border: 2px solid #17476b;
-    border-radius: 8px;
+    border-radius: 0 0 50% 50%;
     position: absolute;
-    top: 165px;
-    left: 173px;
+    top: 0;
+    left: 10px;
+    box-sizing: border-box;
 }
+
+/* Rodas laterais */
+.roda {
+    width: 10px;
+    height: 50px;
+    background-color: #333;
+    border: 1px solid #111;
+    border-radius: 3px;
+    position: absolute;
+    top: 0;
+}
+
+.roda-esquerda {
+    left: 0;
+}
+
+.roda-direita {
+    right: 0;
+}
+
