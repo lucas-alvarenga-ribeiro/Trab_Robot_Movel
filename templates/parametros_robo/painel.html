@@ -1,0 +1,73 @@
+{#
+    Painel de parâmetros e simulação do robô.
+    Para usar em qualquer página:  include "parametros_robo/painel.html"
+    Depende da API registrada por modulo_robo.robo_bp (/api/robo/...).
+#}
+<link rel="stylesheet" href="{{ url_for('static', filename='parametros_robo/painel.css') }}">
+
+<section class="pr-painel" id="pr-painel">
+    <h2>Parâmetros do robô</h2>
+
+    <form class="pr-form" id="pr-form">
+        <fieldset>
+            <legend>Geometria</legend>
+            <label>Diâmetro das rodas (m)
+                <input type="number" name="diametro_roda" step="0.001" min="0.001" value="0.195">
+            </label>
+            <label>Distância entre as rodas (m)
+                <input type="number" name="distancia_rodas" step="0.001" min="0.001" value="0.381">
+            </label>
+            <label>Velocidade máx. da roda (rad/s)
+                <input type="number" name="velocidade_max_roda" step="0.1" min="0.1" value="12">
+            </label>
+            <label>Passo de tempo dt (s)
+                <input type="number" name="passo_tempo" step="0.001" min="0.001" max="1" value="0.01">
+            </label>
+        </fieldset>
+
+        <fieldset>
+            <legend>Erro entre os raios</legend>
+            <label>Erro (%): <output id="pr-erro-valor">0.0</output>
+                <input type="range" name="erro_raio_percentual" min="-10" max="10" step="0.1" value="0">
+            </label>
+            <p class="pr-info" id="pr-raios"></p>
+        </fieldset>
+
+        <fieldset>
+            <legend>Simulação</legend>
+            <label>Modelo
+                <select name="modelo" id="pr-modelo"></select>
+            </label>
+            <p class="pr-info" id="pr-modelo-descricao"></p>
+            <label>Trajetória
+                <select name="trajetoria" id="pr-trajetoria">
+                    <option value="quadrado">Quadrado 2 m (UMBmark)</option>
+                    <option value="circulo">Círculo r = 1 m</option>
+                    <option value="reta">Reta 2 m</option>
+                    <option value="personalizada">Personalizada</option>
+                </select>
+            </label>
+
+            <div id="pr-segmentos" hidden>
+                <table class="pr-tabela">
+                    <thead><tr><th>v (m/s)</th><th>ω (rad/s)</th><th>duração (s)</th><th></th></tr></thead>
+                    <tbody></tbody>
+                </table>
+                <button type="button" id="pr-add-segmento">+ segmento</button>
+            </div>
+        </fieldset>
+
+        <button type="submit" class="pr-botao">Simular</button>
+    </form>
+
+    <div class="pr-resultado">
+        <canvas id="pr-canvas" width="520" height="520"></canvas>
+        <p class="pr-legenda">
+            <span class="pr-real">━ trajetória real</span>
+            <span class="pr-odom">┅ odometria (raio nominal)</span>
+        </p>
+        <p class="pr-info" id="pr-erro-final"></p>
+    </div>
+</section>
+
+<script src="{{ url_for('static', filename='parametros_robo/painel.js') }}"></script>
