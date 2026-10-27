@@ -101,6 +101,30 @@ class TestApi(unittest.TestCase):
         resp = self.cliente.post("/api/robo/simular", json={"parametros": {"diametro_roda": -1}})
         self.assertEqual(resp.status_code, 400)
 
+    def test_passo_tempo_real(self):
+        resp = self.cliente.post("/api/robo/passo", json={
+            "parametros": {"erro_raio_percentual": 2},
+            "modelo": "incremental",
+            "pose_real": [0, 0, 0], "pose_odometria": [0, 0, 0],
+            "v": 0.3, "w": 0, "dt": 1.0,
+        })
+        self.assertEqual(resp.status_code, 200)
+        dados = resp.get_json()
+        self.assertAlmostEqual(dados["real"][0], 0.3, places=2)
+        self.assertGreater(dados["real"][2], 0)          # erro de raio faz o robô girar
+        self.assertAlmostEqual(dados["odometria"][2], 0)  # a odometria não percebe
+        # 100 subpassos -> no máximo 50 amostras, a última igual ao estado final
+        self.assertLessEqual(len(dados["amostras"]), 50)
+        self.assertEqual(dados["amostras"][-1]["real"], dados["real"])
+        self.assertAlmostEqual(dados["amostras"][-1]["t"], 1.0)
+
+    def test_passo_com_velocidades_das_rodas(self):
+        resp = self.cliente.post("/api/robo/passo", json={"w_d": 2, "w_e": -2, "dt": 0.5})
+        dados = resp.get_json()
+        self.assertEqual((dados["w_d"], dados["w_e"]), (2, -2))
+        self.assertAlmostEqual(dados["real"][0], 0)
+        self.assertGreater(dados["real"][2], 0)
+
     def test_pagina_inicial(self):
         self.assertIn(b"pr-painel", self.cliente.get("/").data)
 

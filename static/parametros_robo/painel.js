@@ -1,11 +1,16 @@
-/* Painel de parâmetros e simulação do robô.
+/* Painel de parâmetros, trajetórias e controle manual do robô.
  *
  * Expõe window.ParametrosRobo com:
  *   obterParametros()  -> objeto com os parâmetros do formulário
  *   obterModelo()      -> chave do modelo escolhido
- *   simular()          -> Promise com o resultado de POST /api/robo/simular
- *   aoSimular(fn)      -> registra callback chamado com cada resultado
- * para que outras partes do projeto possam reutilizar o painel.
+ *   obterSegmentos()   -> Promise com os segmentos {v, w, duracao} da trajetória escolhida
+ *   simular()          -> Promise com o resultado de POST /api/robo/simular (cálculo em lote)
+ *   aoSimular(fn)      -> registra callback chamado com cada resultado de simular()
+ *
+ * A comunicação com o motor da simulação (static/script.js) é feita por eventos:
+ *   "executarTrajetoriaRobo" {segmentos}  -> executa uma trajetória
+ *   "atualizarVelocidadesRobo" {v, w, rodas} -> controle manual
+ *   "reiniciarRobo"                       -> emitido pelo motor ao reiniciar
  */
 
 const modoRodas = document.getElementById("pr-modo-rodas");
@@ -26,7 +31,7 @@ const camposRodas = document.getElementById("pr-campos-rodas");
     const corpoTabela = blocoSegmentos.querySelector("tbody");
     const ouvintes = [];
     let modelos = [];
-    let animacao = null;
+    let trajetoriasPadrao = null;
 
     // ------------------------------------------------------------------ //
     // Leitura do formulário
@@ -38,10 +43,11 @@ const camposRodas = document.getElementById("pr-campos-rodas");
     }
 
     function obterModelo() {
-        return seletorModelo.value;
+        // Antes de /modelos responder o seletor ainda está vazio
+        return seletorModelo.value || "diferencial";
     }
 
-    function obterSegmentos() {
+    function segmentosPersonalizados() {
         return Array.from(corpoTabela.rows).map((linha) => {
             const [v, w, duracao] = Array.from(linha.querySelectorAll("input"))
                 .map((i) => parseFloat(i.value) || 0);
@@ -49,14 +55,14 @@ const camposRodas = document.getElementById("pr-campos-rodas");
         });
     }
 
-    function corpoRequisicao() {
-        const corpo = { parametros: obterParametros(), modelo: obterModelo() };
+    async function obterSegmentos() {
         if (seletorTrajetoria.value === "personalizada") {
-            corpo.segmentos = obterSegmentos();
-        } else {
-            corpo.trajetoria = seletorTrajetoria.value;
+            return segmentosPersonalizados();
         }
-        return corpo;
+        if (!trajetoriasPadrao) {
+            trajetoriasPadrao = await (await fetch(`${API}/trajetorias`)).json();
+        }
+        return trajetoriasPadrao[seletorTrajetoria.value];
     }
 
     // ------------------------------------------------------------------ //
@@ -91,117 +97,17 @@ const camposRodas = document.getElementById("pr-campos-rodas");
     }
 
     // ------------------------------------------------------------------ //
-    // Desenho
-    // ------------------------------------------------------------------ //
-    function limites(amostras) {
-        let xs = [], ys = [];
-        amostras.forEach((a) => { xs.push(a.real[0], a.odometria[0]); ys.push(a.real[1], a.odometria[1]); });
-        const minX = Math.min(...xs), maxX = Math.max(...xs);
-        const minY = Math.min(...ys), maxY = Math.max(...ys);
-        const tamanho = Math.max(maxX - minX, maxY - minY, 0.5) * 1.2;
-        return { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, tamanho };
-    }
-
-    function criarTransformacao(lim) {
-        const escala = canvas.width / lim.tamanho;
-        return (x, y) => [
-            canvas.width / 2 + (x - lim.cx) * escala,
-            canvas.height / 2 - (y - lim.cy) * escala,  // eixo y para cima
-        ];
-    }
-
-    function desenharGrade(lim, paraTela) {
-        ctx.strokeStyle = "#eee";
-        ctx.lineWidth = 1;
-        const passo = lim.tamanho > 6 ? 1 : 0.5;
-        const ini = (v) => Math.floor((v - lim.tamanho / 2) / passo) * passo;
-        for (let g = ini(lim.cx); g <= lim.cx + lim.tamanho / 2; g += passo) {
-            const [px] = paraTela(g, 0);
-            ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, canvas.height); ctx.stroke();
-        }
-        for (let g = ini(lim.cy); g <= lim.cy + lim.tamanho / 2; g += passo) {
-            const [, py] = paraTela(0, g);
-            ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(canvas.width, py); ctx.stroke();
-        }
-        ctx.fillStyle = "#888";
-        ctx.font = "11px Arial";
-        ctx.fillText(`grade: ${passo} m`, 6, canvas.height - 6);
-    }
-
-    function desenharCaminho(amostras, chave, ate, cor, tracejado, paraTela) {
-        ctx.strokeStyle = cor;
-        ctx.lineWidth = 2;
-        ctx.setLineDash(tracejado ? [6, 4] : []);
-        ctx.beginPath();
-        for (let i = 0; i <= ate; i++) {
-            const [px, py] = paraTela(amostras[i][chave][0], amostras[i][chave][1]);
-            i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
-        }
-        ctx.stroke();
-        ctx.setLineDash([]);
-    }
-
-    function desenharRobo(pose, parametros, paraTela, escala, cor) {
-        const [px, py] = paraTela(pose[0], pose[1]);
-        const L = parametros.distancia_rodas * escala;
-        const D = parametros.diametro_roda * escala;
-        ctx.save();
-        ctx.translate(px, py);
-        ctx.rotate(-pose[2]);
-        ctx.fillStyle = cor;
-        ctx.globalAlpha = 0.6;
-        ctx.beginPath(); ctx.arc(0, 0, L / 2 * 1.1, 0, 2 * Math.PI); ctx.fill();
-        ctx.globalAlpha = 1;
-        ctx.fillStyle = "#333";
-        ctx.fillRect(-D / 2, -L / 2 - D * 0.15, D, D * 0.3);  // roda esquerda
-        ctx.fillRect(-D / 2, L / 2 - D * 0.15, D, D * 0.3);   // roda direita
-        ctx.strokeStyle = "#000";
-        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(L / 2 * 1.4, 0); ctx.stroke();  // frente
-        ctx.restore();
-    }
-
-    function desenhar(resultado, ate) {
-        const { amostras, parametros } = resultado;
-        const lim = limites(amostras);
-        const paraTela = criarTransformacao(lim);
-        const escala = canvas.width / lim.tamanho;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        desenharGrade(lim, paraTela);
-        desenharCaminho(amostras, "odometria", ate, "#d9534f", true, paraTela);
-        desenharCaminho(amostras, "real", ate, "#2878b5", false, paraTela);
-        desenharRobo(amostras[ate].odometria, parametros, paraTela, escala, "#f2b8b6");
-        desenharRobo(amostras[ate].real, parametros, paraTela, escala, "#2878b5");
-    }
-
-    function animar(resultado) {
-        cancelAnimationFrame(animacao);
-        const total = resultado.amostras.length;
-        const passo = Math.max(1, Math.round(total / 240));  // ~4 s a 60 fps
-        let i = 0;
-        const quadro = () => {
-            i = Math.min(i + passo, total - 1);
-            desenhar(resultado, i);
-            if (i < total - 1) animacao = requestAnimationFrame(quadro);
-        };
-        quadro();
-    }
-
-    function mostrarErro(resultado) {
-        const e = resultado.erro_final;
-        const t = resultado.amostras[resultado.amostras.length - 1].t;
-        document.getElementById("pr-erro-final").textContent =
-            `t = ${t.toFixed(2)} s | erro de posição real × odometria: ${(e.posicao * 100).toFixed(2)} cm | ` +
-            `erro de orientação: ${(e.orientacao * 180 / Math.PI).toFixed(2)}°`;
-    }
-
-    // ------------------------------------------------------------------ //
     // API
     // ------------------------------------------------------------------ //
     async function simular() {
         const resposta = await fetch(`${API}/simular`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(corpoRequisicao()),
+            body: JSON.stringify({
+                parametros: obterParametros(),
+                modelo: obterModelo(),
+                segmentos: await obterSegmentos(),
+            }),
         });
         const resultado = await resposta.json();
         if (!resposta.ok) throw new Error(resultado.erro || "Falha na simulação");
@@ -227,16 +133,10 @@ const camposRodas = document.getElementById("pr-campos-rodas");
     document.getElementById("pr-add-segmento").addEventListener("click", () => adicionarSegmento());
     form.addEventListener("submit", async (ev) => {
         ev.preventDefault();
-        const saida = document.getElementById("pr-erro-final");
-        saida.classList.remove("pr-erro");
-        try {
-            const resultado = await simular();
-            animar(resultado);
-            mostrarErro(resultado);
-        } catch (erro) {
-            saida.textContent = erro.message;
-            saida.classList.add("pr-erro");
-        }
+        const segmentos = await obterSegmentos();
+        window.dispatchEvent(new CustomEvent("executarTrajetoriaRobo", {
+            detail: { segmentos: segmentos },
+        }));
     });
 
     adicionarSegmento(0.3, 0, 3);
@@ -247,6 +147,7 @@ const camposRodas = document.getElementById("pr-campos-rodas");
     window.ParametrosRobo = {
         obterParametros,
         obterModelo,
+        obterSegmentos,
         simular,
         aoSimular: (fn) => ouvintes.push(fn),
     };
@@ -350,6 +251,7 @@ document.getElementById("pr-aplicar-velocidades")
 
         let v;
         let w;
+        let rodas = null;
 
         if (modoRodas.checked) {
             // Velocidades angulares das rodas (rad/s)
@@ -384,6 +286,10 @@ document.getElementById("pr-aplicar-velocidades")
             v = raio * (omegaD + omegaE) / 2;
             w = raio * (omegaD - omegaE) / distancia;
 
+            // Envia também as velocidades das rodas, para que o simulador
+            // as use diretamente (com o erro de raio aplicado)
+            rodas = { w_d: omegaD, w_e: omegaE };
+
         } else {
             // Controle direto do robô
             v = Number(
@@ -401,7 +307,7 @@ document.getElementById("pr-aplicar-velocidades")
 
         window.dispatchEvent(
             new CustomEvent("atualizarVelocidadesRobo", {
-                detail: { v: v, w: w }
+                detail: { v: v, w: w, rodas: rodas }
             })
         );
     });
@@ -612,6 +518,13 @@ window.addEventListener("atualizarGraficosRobo", (evento) => {
         historicoGraficos[1].shift();
     }
 
+    desenharGraficos();
+});
+
+// Reiniciar a simulação também limpa os gráficos
+window.addEventListener("reiniciarRobo", () => {
+    historicoGraficos[0] = [];
+    historicoGraficos[1] = [];
     desenharGraficos();
 });
 

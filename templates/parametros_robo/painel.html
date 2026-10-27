@@ -1,28 +1,31 @@
 {#
-    Painel de parâmetros e simulação do robô.
+    Tela única do simulador: parâmetros | mundo (robô + trajetórias) | velocidades e gráficos.
     Para usar em qualquer página:  include "parametros_robo/painel.html"
-    Depende da API registrada por modulo_robo.robo_bp (/api/robo/...).
+    Depende da API registrada por modulo_robo.robo_bp (/api/robo/...)
+    e de static/script.js (motor da simulação, carregado depois deste painel).
 #}
 <link rel="stylesheet" href="{{ url_for('static', filename='parametros_robo/painel.css') }}">
 
 <section class="pr-painel" id="pr-painel">
-    <h2>Parâmetros do robô</h2>
 
-    <form class="pr-form" id="pr-form">
+    <!-- Coluna 1: parâmetros, modelo e trajetória -->
+    <form class="pr-form pr-coluna" id="pr-form">
         <fieldset>
             <legend>Geometria</legend>
-            <label>Diâmetro das rodas (m)
-                <input type="number" name="diametro_roda" step="0.001" min="0.001" value="0.195">
-            </label>
-            <label>Distância entre as rodas (m)
-                <input type="number" name="distancia_rodas" step="0.001" min="0.001" value="0.381">
-            </label>
-            <label>Velocidade máx. da roda (rad/s)
-                <input type="number" name="velocidade_max_roda" step="0.1" min="0.1" value="12">
-            </label>
-            <label>Passo de tempo dt (s)
-                <input type="number" name="passo_tempo" step="0.001" min="0.001" max="1" value="0.01">
-            </label>
+            <div class="pr-grade-campos">
+                <label>Diâmetro das rodas (m)
+                    <input type="number" name="diametro_roda" step="0.001" min="0.001" value="0.195">
+                </label>
+                <label>Distância entre rodas (m)
+                    <input type="number" name="distancia_rodas" step="0.001" min="0.001" value="0.381">
+                </label>
+                <label>Vel. máx. da roda (rad/s)
+                    <input type="number" name="velocidade_max_roda" step="0.1" min="0.1" value="12">
+                </label>
+                <label>Passo de tempo dt (s)
+                    <input type="number" name="passo_tempo" step="0.001" min="0.001" max="1" value="0.01">
+                </label>
+            </div>
         </fieldset>
 
         <fieldset>
@@ -34,19 +37,19 @@
         </fieldset>
 
         <fieldset>
-            <legend>Simulação</legend>
-            <label>Modelo
-                <select name="modelo" id="pr-modelo"></select>
-            </label>
+            <legend>Modelo</legend>
+            <select name="modelo" id="pr-modelo"></select>
             <p class="pr-info" id="pr-modelo-descricao"></p>
-            <label>Trajetória
-                <select name="trajetoria" id="pr-trajetoria">
-                    <option value="quadrado">Quadrado 2 m (UMBmark)</option>
-                    <option value="circulo">Círculo r = 1 m</option>
-                    <option value="reta">Reta 2 m</option>
-                    <option value="personalizada">Personalizada</option>
-                </select>
-            </label>
+        </fieldset>
+
+        <fieldset>
+            <legend>Trajetória</legend>
+            <select name="trajetoria" id="pr-trajetoria">
+                <option value="quadrado">Quadrado 2 m (UMBmark)</option>
+                <option value="circulo">Círculo r = 1 m</option>
+                <option value="reta">Reta 2 m</option>
+                <option value="personalizada">Personalizada</option>
+            </select>
 
             <div id="pr-segmentos" hidden>
                 <table class="pr-tabela">
@@ -55,28 +58,35 @@
                 </table>
                 <button type="button" id="pr-add-segmento">+ segmento</button>
             </div>
+            <button type="submit" class="pr-botao">Executar trajetória</button>
         </fieldset>
-
-        <button type="submit" class="pr-botao">Simular</button>
     </form>
 
-    <div class="pr-resultado">
-        <canvas id="pr-canvas" width="520" height="520" hidden></canvas>
-        
-        <div class="pr-graficos">
-            <h3>Velocidades ao longo do tempo</h3>
-
-            <div class="pr-grafico">
-                <h4 id="pr-titulo-grafico-1">Velocidade angular da roda esquerda</h4>
-                <canvas id="pr-grafico-1" width="520" height="200"></canvas>
-            </div>
-
-            <div class="pr-grafico">
-                <h4 id="pr-titulo-grafico-2">Velocidade angular da roda direita</h4>
-                <canvas id="pr-grafico-2" width="520" height="200"></canvas>
-            </div>
+    <!-- Coluna 2: mundo da simulação -->
+    <div class="pr-coluna pr-coluna-mundo">
+        <div class="pr-barra">
+            <button type="button" id="pr-pausar">⏸ Pausar</button>
+            <button type="button" id="pr-reiniciar">⟲ Reiniciar</button>
+            <label>Velocidade
+                <select id="pr-fator">
+                    <option value="1">1×</option>
+                    <option value="2">2×</option>
+                    <option value="5">5×</option>
+                    <option value="10">10×</option>
+                </select>
+            </label>
         </div>
+        <canvas id="pr-mundo"></canvas>
+        <p class="pr-legenda">
+            <span class="pr-real">━ trajetória real (raios com erro)</span>
+            <span class="pr-odom">┅ odometria (raio nominal)</span>
+        </p>
+        <p class="pr-info" id="pr-estado-tempo-real"></p>
+        <p class="pr-info" id="pr-estado-trajetoria"></p>
+    </div>
 
+    <!-- Coluna 3: controle manual e gráficos -->
+    <div class="pr-coluna">
         <fieldset class="pr-velocidades">
             <legend>Velocidades do robô</legend>
 
@@ -143,6 +153,18 @@
             </button>
         </fieldset>
 
+        <div class="pr-graficos">
+            <div class="pr-grafico">
+                <h4 id="pr-titulo-grafico-1">Velocidade angular da roda esquerda</h4>
+                <canvas id="pr-grafico-1" width="520" height="200"></canvas>
+            </div>
+
+            <div class="pr-grafico">
+                <h4 id="pr-titulo-grafico-2">Velocidade angular da roda direita</h4>
+                <canvas id="pr-grafico-2" width="520" height="200"></canvas>
+            </div>
+        </div>
+    </div>
 </section>
 
 <script src="{{ url_for('static', filename='parametros_robo/painel.js') }}"></script>
