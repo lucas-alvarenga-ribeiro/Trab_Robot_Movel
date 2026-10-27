@@ -7,6 +7,11 @@
  *   aoSimular(fn)      -> registra callback chamado com cada resultado
  * para que outras partes do projeto possam reutilizar o painel.
  */
+
+const modoRodas = document.getElementById("pr-modo-rodas");
+const camposRobo = document.getElementById("pr-campos-robo");
+const camposRodas = document.getElementById("pr-campos-rodas");
+
 (function () {
     "use strict";
 
@@ -15,8 +20,6 @@
                     "velocidade_max_roda", "passo_tempo"];
 
     const form = document.getElementById("pr-form");
-    const canvas = document.getElementById("pr-canvas");
-    const ctx = canvas.getContext("2d");
     const seletorModelo = document.getElementById("pr-modelo");
     const seletorTrajetoria = document.getElementById("pr-trajetoria");
     const blocoSegmentos = document.getElementById("pr-segmentos");
@@ -248,3 +251,370 @@
         aoSimular: (fn) => ouvintes.push(fn),
     };
 })();
+
+
+modoRodas.addEventListener("change", () => {
+    camposRobo.hidden = modoRodas.checked;
+    camposRodas.hidden = !modoRodas.checked;
+
+    // Limpa somente o histórico dos gráficos
+    historicoGraficos[0] = [];
+    historicoGraficos[1] = [];
+
+    atualizarTitulosGraficos();
+    atualizarVelocidadesCalculadas();
+    desenharGraficos();
+});
+
+function atualizarVelocidadesCalculadas() {
+    const modoRodas = document.getElementById("pr-modo-rodas").checked;
+
+    const raio = Number(
+        document.querySelector('[name="diametro_roda"]').value
+    ) / 2;
+
+    const distancia = Number(
+        document.querySelector('[name="distancia_rodas"]').value
+    );
+
+    let v, w, omegaE, omegaD;
+
+    if (raio <= 0 || distancia <= 0) return;
+
+    if (modoRodas) {
+        // Entradas: velocidades das rodas
+        omegaE = Number(
+            document.getElementById("pr-velocidade-roda-esquerda").value
+        );
+
+        omegaD = Number(
+            document.getElementById("pr-velocidade-roda-direita").value
+        );
+
+        // Calcula as velocidades do robô
+        v = raio * (omegaD + omegaE) / 2;
+        w = raio * (omegaD - omegaE) / distancia;
+
+        document.getElementById("pr-label-linear").textContent = v.toFixed(2);
+        document.getElementById("pr-label-angular").textContent = w.toFixed(2);
+
+    } else {
+        // Entradas: velocidades do robô
+        v = Number(
+            document.getElementById("pr-velocidade-linear").value
+        );
+
+        w = Number(
+            document.getElementById("pr-velocidade-angular").value
+        );
+
+        // Calcula as velocidades das rodas
+        omegaE = (v - w * distancia / 2) / raio;
+        omegaD = (v + w * distancia / 2) / raio;
+
+        document.getElementById("pr-label-roda-esquerda").textContent =
+            omegaE.toFixed(2);
+
+        document.getElementById("pr-label-roda-direita").textContent =
+            omegaD.toFixed(2);
+    }
+}
+
+// Atualiza os valores calculados ao alterar qualquer entrada
+[
+    "pr-velocidade-linear",
+    "pr-velocidade-angular",
+    "pr-velocidade-roda-esquerda",
+    "pr-velocidade-roda-direita"
+].forEach((id) => {
+    document.getElementById(id).addEventListener(
+        "input",
+        atualizarVelocidadesCalculadas
+    );
+});
+
+// Atualiza ao mudar os parâmetros geométricos
+[
+    "diametro_roda",
+    "distancia_rodas"
+].forEach((nome) => {
+    document.querySelector(`[name="${nome}"]`).addEventListener(
+        "input",
+        atualizarVelocidadesCalculadas
+    );
+});
+
+// Aplica as velocidades
+document.getElementById("pr-aplicar-velocidades")
+    .addEventListener("click", () => {
+
+        let v;
+        let w;
+
+        if (modoRodas.checked) {
+            // Velocidades angulares das rodas (rad/s)
+            const omegaE = Number(
+                document.getElementById(
+                    "pr-velocidade-roda-esquerda"
+                ).value
+            );
+
+            const omegaD = Number(
+                document.getElementById(
+                    "pr-velocidade-roda-direita"
+                ).value
+            );
+
+            // Parâmetros geométricos do robô
+            const diametro = Number(
+                document.querySelector(
+                    '[name="diametro_roda"]'
+                ).value
+            );
+
+            const distancia = Number(
+                document.querySelector(
+                    '[name="distancia_rodas"]'
+                ).value
+            );
+
+            const raio = diametro / 2;
+
+            // Cinemática diferencial
+            v = raio * (omegaD + omegaE) / 2;
+            w = raio * (omegaD - omegaE) / distancia;
+
+        } else {
+            // Controle direto do robô
+            v = Number(
+                document.getElementById(
+                    "pr-velocidade-linear"
+                ).value
+            );
+
+            w = Number(
+                document.getElementById(
+                    "pr-velocidade-angular"
+                ).value
+            );
+        }
+
+        window.dispatchEvent(
+            new CustomEvent("atualizarVelocidadesRobo", {
+                detail: { v: v, w: w }
+            })
+        );
+    });
+
+
+const canvasGrafico1 = document.getElementById("pr-grafico-1");
+const canvasGrafico2 = document.getElementById("pr-grafico-2");
+
+const ctxGrafico1 = canvasGrafico1.getContext("2d");
+const ctxGrafico2 = canvasGrafico2.getContext("2d");
+
+// Histórico das duas variáveis exibidas
+const historicoGraficos = [[], []];
+
+const intervaloGrafico = 0.1; // 100 ms
+const maxPontosGrafico = 120; // 12 segundos de histórico
+
+function atualizarTitulosGraficos() {
+    const titulo1 = document.getElementById("pr-titulo-grafico-1");
+    const titulo2 = document.getElementById("pr-titulo-grafico-2");
+
+    if (modoRodas.checked) {
+        titulo1.textContent = "Velocidade linear do robô v (m/s)";
+        titulo2.textContent = "Velocidade angular do robô ω (rad/s)";
+    } else {
+        titulo1.textContent = "Velocidade angular da roda esquerda ωE (rad/s)";
+        titulo2.textContent = "Velocidade angular da roda direita ωD (rad/s)";
+    }
+}
+
+
+function desenharGrafico(ctx, canvas, valores) {
+    const largura = canvas.width;
+    const altura = canvas.height;
+
+    const margemEsquerda = 48;
+    const margemDireita = 12;
+    const margemSuperior = 15;
+    const margemInferior = 28;
+
+    const areaLargura = largura - margemEsquerda - margemDireita;
+    const areaAltura = altura - margemSuperior - margemInferior;
+
+    ctx.clearRect(0, 0, largura, altura);
+
+    // Fundo
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, largura, altura);
+
+    // Escala vertical simétrica para permitir valores negativos
+    const maiorValor = Math.max(
+        0.1,
+        ...valores.map(valor => Math.abs(valor))
+    ) * 1.1;
+
+    const centroY = margemSuperior + areaAltura / 2;
+
+    // Eixos
+    ctx.strokeStyle = "#aaaaaa";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+
+    ctx.moveTo(margemEsquerda, margemSuperior);
+    ctx.lineTo(margemEsquerda, altura - margemInferior);
+
+    ctx.moveTo(margemEsquerda, centroY);
+    ctx.lineTo(largura - margemDireita, centroY);
+
+    ctx.stroke();
+
+    // Valores do eixo vertical
+    ctx.fillStyle = "#333333";
+    ctx.font = "11px Arial";
+    ctx.textAlign = "right";
+
+    ctx.fillText(
+        maiorValor.toFixed(2),
+        margemEsquerda - 5,
+        margemSuperior + 5
+    );
+
+    ctx.fillText(
+        "0",
+        margemEsquerda - 5,
+        centroY + 4
+    );
+
+    ctx.fillText(
+        (-maiorValor).toFixed(2),
+        margemEsquerda - 5,
+        altura - margemInferior
+    );
+
+    // Eixo horizontal: tempo
+    ctx.textAlign = "left";
+    ctx.fillText("0 s", margemEsquerda, altura - 8);
+
+    const tempoExibido = Math.max(
+        0,
+        (valores.length - 1) * intervaloGrafico
+    );
+
+    ctx.textAlign = "right";
+    ctx.fillText(
+        `${tempoExibido.toFixed(1)} s`,
+        largura - margemDireita,
+        altura - 8
+    );
+
+    // Curva de velocidade
+    if (valores.length === 0) {
+        return;
+    }
+
+    ctx.strokeStyle = "#1769aa";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+
+    valores.forEach((valor, indice) => {
+        const x = valores.length === 1
+            ? margemEsquerda
+            : margemEsquerda +
+              (indice / (valores.length - 1)) * areaLargura;
+
+        const y = centroY - (valor / maiorValor) * (areaAltura / 2);
+
+        if (indice === 0) {
+            ctx.moveTo(x, y);
+        } else {
+            ctx.lineTo(x, y);
+        }
+    });
+
+    ctx.stroke();
+}
+
+function desenharGraficos() {
+    desenharGrafico(
+        ctxGrafico1,
+        canvasGrafico1,
+        historicoGraficos[0]
+    );
+
+    desenharGrafico(
+        ctxGrafico2,
+        canvasGrafico2,
+        historicoGraficos[1]
+    );
+}
+
+function registrarPontoGraficos() {
+    const valores = obterValoresGraficos();
+
+    valores.forEach((valor, indice) => {
+        const historico = historicoGraficos[indice];
+
+        historico.push(Number.isFinite(valor) ? valor : 0);
+
+        if (historico.length > maxPontosGrafico) {
+            historico.shift();
+        }
+    });
+
+    desenharGraficos();
+}
+
+window.addEventListener("atualizarGraficosRobo", (evento) => {
+
+    const v = evento.detail.v;
+    const w = evento.detail.w;
+
+    const raio =
+        Number(document.querySelector('[name="diametro_roda"]').value) / 2;
+
+    const distancia =
+        Number(document.querySelector('[name="distancia_rodas"]').value);
+
+    if (raio <= 0 || distancia <= 0) {
+        return;
+    }
+
+    let valor1;
+    let valor2;
+
+    if (modoRodas.checked) {
+
+        // Usuário controla as rodas.
+        // Os gráficos mostram as velocidades do robô.
+        valor1 = v;
+        valor2 = w;
+
+    } else {
+
+        // Usuário controla v e w.
+        // Os gráficos mostram as velocidades das rodas.
+        valor1 = (v - w * distancia / 2) / raio;
+        valor2 = (v + w * distancia / 2) / raio;
+    }
+
+    historicoGraficos[0].push(valor1);
+    historicoGraficos[1].push(valor2);
+
+    if (historicoGraficos[0].length > maxPontosGrafico) {
+        historicoGraficos[0].shift();
+    }
+
+    if (historicoGraficos[1].length > maxPontosGrafico) {
+        historicoGraficos[1].shift();
+    }
+
+    desenharGraficos();
+});
+
+// Configuração inicial
+atualizarTitulosGraficos();
+desenharGraficos();

@@ -94,6 +94,80 @@
     gap: 16px;
 }
 
+
+.pr-velocidades label {
+    display: block;
+    margin: 10px 0;
+    font-size: 14px;
+}
+
+.pr-velocidades {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    margin: 0 0 16px;
+    padding: 12px;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+}
+
+.pr-campos {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.pr-campos[hidden] {
+    display: none;
+}
+
+.pr-campos input[type="number"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 4px;
+}
+
+.pr-alternar {
+    display: block;
+    margin-bottom: 12px;
+    grid-column: 1 / -1;
+}
+
+#pr-aplicar-velocidades {
+    margin-top: 12px;
+    grid-column: 1 / -1;
+}
+
+
+.pr-graficos {
+    width: 100%;
+    min-width: 0;
+    margin-top: 20px;
+}
+
+.pr-grafico {
+    width: 100%;
+    min-width: 0;
+    margin-bottom: 20px;
+}
+
+.pr-grafico h4 {
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.pr-grafico canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+}
+
+
 .pr-real { color: #2878b5; }
 .pr-odom { color: #d9534f; }
 

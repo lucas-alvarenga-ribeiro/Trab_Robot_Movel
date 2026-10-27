@@ -61,13 +61,88 @@
     </form>
 
     <div class="pr-resultado">
-        <canvas id="pr-canvas" width="520" height="520"></canvas>
-        <p class="pr-legenda">
-            <span class="pr-real">━ trajetória real</span>
-            <span class="pr-odom">┅ odometria (raio nominal)</span>
-        </p>
-        <p class="pr-info" id="pr-erro-final"></p>
-    </div>
+        <canvas id="pr-canvas" width="520" height="520" hidden></canvas>
+        
+        <div class="pr-graficos">
+            <h3>Velocidades ao longo do tempo</h3>
+
+            <div class="pr-grafico">
+                <h4 id="pr-titulo-grafico-1">Velocidade angular da roda esquerda</h4>
+                <canvas id="pr-grafico-1" width="520" height="200"></canvas>
+            </div>
+
+            <div class="pr-grafico">
+                <h4 id="pr-titulo-grafico-2">Velocidade angular da roda direita</h4>
+                <canvas id="pr-grafico-2" width="520" height="200"></canvas>
+            </div>
+        </div>
+
+        <fieldset class="pr-velocidades">
+            <legend>Velocidades do robô</legend>
+
+            <label class="pr-alternar">
+                <input type="checkbox" id="pr-modo-rodas">
+                Controlar rodas individualmente
+            </label>
+
+            <!-- Modo de controle do robô -->
+            <div class="pr-campos" id="pr-campos-robo">
+                <div>
+                    <label for="pr-velocidade-linear">
+                        Velocidade linear (m/s)
+                    </label>
+                    <input type="number" id="pr-velocidade-linear"
+                        step="0.1" value="0">
+                </div>
+
+                <div>
+                    <label for="pr-velocidade-angular">
+                        Velocidade angular (rad/s)
+                    </label>
+                    <input type="number" id="pr-velocidade-angular"
+                        step="0.1" value="0">
+                </div>
+                    <p class="pr-info">
+                        Roda esquerda: <strong><span id="pr-label-roda-esquerda">0.00</span> rad/s</strong>
+                    </p>
+
+                    <p class="pr-info">
+                        Roda direita: <strong><span id="pr-label-roda-direita">0.00</span> rad/s</strong>
+                    </p>
+            </div>
+
+            <!-- Modo de controle das rodas -->
+            <div class="pr-campos" id="pr-campos-rodas" hidden>
+                <div>
+                    <label for="pr-velocidade-roda-esquerda">
+                        Roda esquerda (rad/s)
+                    </label>
+                    <input type="number" id="pr-velocidade-roda-esquerda"
+                        step="0.1" value="0">
+                </div>
+
+                <div>
+                    <label for="pr-velocidade-roda-direita">
+                        Roda direita (rad/s)
+                    </label>
+                    <input type="number" id="pr-velocidade-roda-direita"
+                        step="0.1" value="0">
+                </div>
+                    <p class="pr-info">
+                        Velocidade linear: <strong><span id="pr-label-linear">0.00</span> m/s</strong>
+                    </p>
+
+                    <p class="pr-info">
+                        Velocidade angular: <strong><span id="pr-label-angular">0.00</span> rad/s</strong>
+                    </p>
+            </div>
+
+            <button type="button" id="pr-aplicar-velocidades"
+                    class="pr-botao">
+                Aplicar velocidades
+            </button>
+        </fieldset>
+
 </section>
 
 <script src="{{ url_for('static', filename='parametros_robo/painel.js') }}"></script>
