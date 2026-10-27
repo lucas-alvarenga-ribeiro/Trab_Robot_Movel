@@ -1,0 +1,148 @@
+{#
+    Painel de parâmetros e simulação do robô.
+    Para usar em qualquer página:  include "parametros_robo/painel.html"
+    Depende da API registrada por modulo_robo.robo_bp (/api/robo/...).
+#}
+<link rel="stylesheet" href="{{ url_for('static', filename='parametros_robo/painel.css') }}">
+
+<section class="pr-painel" id="pr-painel">
+    <h2>Parâmetros do robô</h2>
+
+    <form class="pr-form" id="pr-form">
+        <fieldset>
+            <legend>Geometria</legend>
+            <label>Diâmetro das rodas (m)
+                <input type="number" name="diametro_roda" step="0.001" min="0.001" value="0.195">
+            </label>
+            <label>Distância entre as rodas (m)
+                <input type="number" name="distancia_rodas" step="0.001" min="0.001" value="0.381">
+            </label>
+            <label>Velocidade máx. da roda (rad/s)
+                <input type="number" name="velocidade_max_roda" step="0.1" min="0.1" value="12">
+            </label>
+            <label>Passo de tempo dt (s)
+                <input type="number" name="passo_tempo" step="0.001" min="0.001" max="1" value="0.01">
+            </label>
+        </fieldset>
+
+        <fieldset>
+            <legend>Erro entre os raios</legend>
+            <label>Erro (%): <output id="pr-erro-valor">0.0</output>
+                <input type="range" name="erro_raio_percentual" min="-10" max="10" step="0.1" value="0">
+            </label>
+            <p class="pr-info" id="pr-raios"></p>
+        </fieldset>
+
+        <fieldset>
+            <legend>Simulação</legend>
+            <label>Modelo
+                <select name="modelo" id="pr-modelo"></select>
+            </label>
+            <p class="pr-info" id="pr-modelo-descricao"></p>
+            <label>Trajetória
+                <select name="trajetoria" id="pr-trajetoria">
+                    <option value="quadrado">Quadrado 2 m (UMBmark)</option>
+                    <option value="circulo">Círculo r = 1 m</option>
+                    <option value="reta">Reta 2 m</option>
+                    <option value="personalizada">Personalizada</option>
+                </select>
+            </label>
+
+            <div id="pr-segmentos" hidden>
+                <table class="pr-tabela">
+                    <thead><tr><th>v (m/s)</th><th>ω (rad/s)</th><th>duração (s)</th><th></th></tr></thead>
+                    <tbody></tbody>
+                </table>
+                <button type="button" id="pr-add-segmento">+ segmento</button>
+            </div>
+        </fieldset>
+
+        <button type="submit" class="pr-botao">Simular</button>
+    </form>
+
+    <div class="pr-resultado">
+        <canvas id="pr-canvas" width="520" height="520" hidden></canvas>
+        
+        <div class="pr-graficos">
+            <h3>Velocidades ao longo do tempo</h3>
+
+            <div class="pr-grafico">
+                <h4 id="pr-titulo-grafico-1">Velocidade angular da roda esquerda</h4>
+                <canvas id="pr-grafico-1" width="520" height="200"></canvas>
+            </div>
+
+            <div class="pr-grafico">
+                <h4 id="pr-titulo-grafico-2">Velocidade angular da roda direita</h4>
+                <canvas id="pr-grafico-2" width="520" height="200"></canvas>
+            </div>
+        </div>
+
+        <fieldset class="pr-velocidades">
+            <legend>Velocidades do robô</legend>
+
+            <label class="pr-alternar">
+                <input type="checkbox" id="pr-modo-rodas">
+                Controlar rodas individualmente
+            </label>
+
+            <!-- Modo de controle do robô -->
+            <div class="pr-campos" id="pr-campos-robo">
+                <div>
+                    <label for="pr-velocidade-linear">
+                        Velocidade linear (m/s)
+                    </label>
+                    <input type="number" id="pr-velocidade-linear"
+                        step="0.1" value="0">
+                </div>
+
+                <div>
+                    <label for="pr-velocidade-angular">
+                        Velocidade angular (rad/s)
+                    </label>
+                    <input type="number" id="pr-velocidade-angular"
+                        step="0.1" value="0">
+                </div>
+                    <p class="pr-info">
+                        Roda esquerda: <strong><span id="pr-label-roda-esquerda">0.00</span> rad/s</strong>
+                    </p>
+
+                    <p class="pr-info">
+                        Roda direita: <strong><span id="pr-label-roda-direita">0.00</span> rad/s</strong>
+                    </p>
+            </div>
+
+            <!-- Modo de controle das rodas -->
+            <div class="pr-campos" id="pr-campos-rodas" hidden>
+                <div>
+                    <label for="pr-velocidade-roda-esquerda">
+                        Roda esquerda (rad/s)
+                    </label>
+                    <input type="number" id="pr-velocidade-roda-esquerda"
+                        step="0.1" value="0">
+                </div>
+
+                <div>
+                    <label for="pr-velocidade-roda-direita">
+                        Roda direita (rad/s)
+                    </label>
+                    <input type="number" id="pr-velocidade-roda-direita"
+                        step="0.1" value="0">
+                </div>
+                    <p class="pr-info">
+                        Velocidade linear: <strong><span id="pr-label-linear">0.00</span> m/s</strong>
+                    </p>
+
+                    <p class="pr-info">
+                        Velocidade angular: <strong><span id="pr-label-angular">0.00</span> rad/s</strong>
+                    </p>
+            </div>
+
+            <button type="button" id="pr-aplicar-velocidades"
+                    class="pr-botao">
+                Aplicar velocidades
+            </button>
+        </fieldset>
+
+</section>
+
+<script src="{{ url_for('static', filename='parametros_robo/painel.js') }}"></script>

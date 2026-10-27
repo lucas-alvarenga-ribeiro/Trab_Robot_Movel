@@ -1,0 +1,174 @@
+/* Estilos do painel de parâmetros do robô. Todas as classes usam o prefixo
+   "pr-" para não colidir com os estilos do restante do projeto. */
+
+.pr-painel {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: center;
+    max-width: 1000px;
+    margin: 20px auto;
+    padding: 16px;
+    background: #fff;
+    border-radius: 8px;
+    text-align: left;
+}
+
+.pr-painel h2 {
+    width: 100%;
+    margin: 0;
+    text-align: center;
+}
+
+.pr-form {
+    flex: 1 1 320px;
+    max-width: 400px;
+}
+
+.pr-form fieldset {
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    margin-bottom: 10px;
+}
+
+.pr-form label {
+    display: block;
+    margin: 6px 0;
+    font-size: 14px;
+}
+
+.pr-form input[type="number"],
+.pr-form select {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 4px;
+}
+
+.pr-form input[type="range"] {
+    width: 100%;
+}
+
+.pr-info {
+    font-size: 12px;
+    color: #555;
+    margin: 4px 0;
+}
+
+.pr-tabela {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.pr-tabela input {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.pr-botao {
+    width: 100%;
+    padding: 8px;
+    font-size: 16px;
+    background: #2878b5;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.pr-resultado {
+    flex: 1 1 320px;
+    max-width: 520px;
+}
+
+#pr-canvas {
+    width: 100%;
+    height: auto;
+    border: 1px solid #333;
+}
+
+.pr-legenda {
+    font-size: 13px;
+    display: flex;
+    gap: 16px;
+}
+
+
+.pr-velocidades label {
+    display: block;
+    margin: 10px 0;
+    font-size: 14px;
+}
+
+.pr-velocidades {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    margin: 0 0 16px;
+    padding: 12px;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+}
+
+.pr-campos {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.pr-campos[hidden] {
+    display: none;
+}
+
+.pr-campos input[type="number"] {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 4px;
+}
+
+.pr-alternar {
+    display: block;
+    margin-bottom: 12px;
+    grid-column: 1 / -1;
+}
+
+#pr-aplicar-velocidades {
+    margin-top: 12px;
+    grid-column: 1 / -1;
+}
+
+
+.pr-graficos {
+    width: 100%;
+    min-width: 0;
+    margin-top: 20px;
+}
+
+.pr-grafico {
+    width: 100%;
+    min-width: 0;
+    margin-bottom: 20px;
+}
+
+.pr-grafico h4 {
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.pr-grafico canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+}
+
+
+.pr-real { color: #2878b5; }
+.pr-odom { color: #d9534f; }
+
+.pr-erro { color: #d9534f; }
