@@ -17,7 +17,7 @@ from .modelos import obter_modelo
 from .parametros import ParametrosRobo
 import math
 
-from .controlador import ControladorPonto  # <-- ADICIONE ESTA LINHA AQUI
+from .controlador import ControladorPonto, ControladorCaminho  # <-- ADICIONE ESTA LINHA AQUI
 
 
 class Robo:
@@ -122,6 +122,28 @@ class Robo:
             amostras.append(self.estado())
 
             if v == 0.0 and w == 0.0:
+                break
+
+        return {
+            "modelo": self.modelo.chave,
+            "parametros": self.parametros.para_dict(),
+            "amostras": amostras,
+            "erro_final": self.erro_odometria(),
+        }
+    def simular_caminho(self, caminho, v_max=0.5, max_passos=20000):
+        """Simula o robô seguindo uma lista de waypoints em malha fechada."""
+        controlador = ControladorCaminho(caminho)
+        dt = self.parametros.passo_tempo
+        amostras = [self.estado()]
+
+        for _ in range(max_passos):
+            v, w = controlador.calcular_comandos(self.pose_odometria, v_max=v_max)
+            w_d, w_e = self.velocidades_rodas(v, w)
+            self.passo(w_d, w_e, dt)
+            amostras.append(self.estado())
+
+            # Condição de parada: parou ao atingir o último ponto
+            if v == 0.0 and w == 0.0 and controlador.indice_alvo >= len(caminho) - 1:
                 break
 
         return {

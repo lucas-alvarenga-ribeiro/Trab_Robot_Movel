@@ -91,16 +91,36 @@ def passo():
 
 @robo_bp.post("/simular-ponto")
 def simular_ponto():
-    """Recebe x_alvo e y_alvo e executa a simulação em malha fechada."""
+    """Recebe x_alvo, y_alvo e a pose_inicial atual para navegar a partir de onde parou."""
     dados = request.get_json(silent=True) or {}
     try:
         parametros = ParametrosRobo.de_dict(dados.get("parametros"))
-        robo = Robo(parametros, modelo=dados.get("modelo", "diferencial"))
+        pose_inicial = dados.get("pose_inicial", (0.0, 0.0, 0.0))
+        
+        # Instancia o robô na posição atual em que ele se encontra
+        robo = Robo(parametros, modelo=dados.get("modelo", "diferencial"), pose_inicial=pose_inicial)
         
         x_alvo = float(dados.get("x_alvo", 0.0))
         y_alvo = float(dados.get("y_alvo", 0.0))
         
         resultado = robo.simular_ponto(x_alvo, y_alvo)
+        return jsonify(resultado)
+    except (ValueError, KeyError, TypeError) as erro:
+        return jsonify({"erro": str(erro)}), 400
+    
+@robo_bp.post("/simular-caminho")
+def simular_caminho():
+    """Recebe uma lista de pontos [[x1, y1], [x2, y2], ...] e executa a simulação."""
+    dados = request.get_json(silent=True) or {}
+    try:
+        caminho = dados.get("caminho", [])
+        if not caminho:
+            raise ValueError("O caminho não pode estar vazio.")
+
+        parametros = ParametrosRobo.de_dict(dados.get("parametros"))
+        robo = Robo(parametros, modelo=dados.get("modelo", "diferencial"))
+
+        resultado = robo.simular_caminho(caminho)
         return jsonify(resultado)
     except (ValueError, KeyError, TypeError) as erro:
         return jsonify({"erro": str(erro)}), 400

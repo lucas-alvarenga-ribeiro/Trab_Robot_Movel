@@ -147,7 +147,7 @@ const camposRodas = document.getElementById("pr-campos-rodas");
     // ------------------------------------------------------------------ //
     // Nova função de simulação em malha fechada (Driving to a Point)
     // ------------------------------------------------------------------ //
-    async function simularPonto(xAlvo, yAlvo) {
+    async function simularPonto(xAlvo, yAlvo, poseInicial) {
         const resposta = await fetch(`${API}/simular-ponto`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -156,24 +156,43 @@ const camposRodas = document.getElementById("pr-campos-rodas");
                 modelo: obterModelo(),
                 x_alvo: xAlvo,
                 y_alvo: yAlvo,
+                pose_inicial: poseInicial || [0, 0, 0],
             }),
         });
         const resultado = await resposta.json();
         if (!resposta.ok) throw new Error(resultado.erro || "Falha na simulação por ponto");
         
-        // Notifica ouvintes registrados (ex: script.js para desenhar no Canvas)
+        ouvintes.forEach((fn) => fn(resultado));
+        return resultado;
+    }
+    async function simularCaminho(caminho) {
+        const resposta = await fetch(`${API}/simular-caminho`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                parametros: obterParametros(),
+                modelo: obterModelo(),
+                caminho: caminho,
+            }),
+        });
+        const resultado = await resposta.json();
+        if (!resposta.ok) throw new Error(resultado.erro || "Falha na simulação por caminho");
+
         ouvintes.forEach((fn) => fn(resultado));
         return resultado;
     }
 
+    // No window.ParametrosRobo adicione simularCaminho:
     window.ParametrosRobo = {
         obterParametros,
         obterModelo,
         obterSegmentos,
         simular,
-        simularPonto, // <-- NOVO
+        simularPonto,
+        simularCaminho, // <-- NOVO
         aoSimular: (fn) => ouvintes.push(fn),
     };
+
 })();
 
 
@@ -344,7 +363,6 @@ const ctxGrafico2 = canvasGrafico2.getContext("2d");
 
 // Histórico das duas variáveis exibidas
 const historicoGraficos = [[], []];
-
 const intervaloGrafico = 0.1; // 100 ms
 const maxPontosGrafico = 120; // 12 segundos de histórico
 
