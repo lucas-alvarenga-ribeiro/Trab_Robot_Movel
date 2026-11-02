@@ -432,6 +432,60 @@
         ctx.fillText(`grade: ${passo} m`, 8, canvas.height - 8);
     }
 
+    // 1. Recebe as amostras do controlador em malha fechada e carrega no buffer da animação
+    window.addEventListener("executarAmostrasRobo", (evento) => {
+        reiniciar();
+        const amostrasRecebidas = evento.detail.amostras || [];
+        if (amostrasRecebidas.length === 0) return;
+
+        fila = [];
+        trajetoriaEmCurso = true;
+
+        // Converte o histórico retornado pelo Python para o buffer do Canvas
+        buffer = amostrasRecebidas.map((a) =>
+            amostra(a.t, a.real, a.odometria, { v: 0, w: 0, rodas: null })
+        );
+
+        const tempoTotal = buffer[buffer.length - 1].t;
+        saidaTrajetoria.textContent = `Navegando até o ponto (${tempoTotal.toFixed(1)} s simulados)…`;
+        definirPausa(false);
+    });
+
+    // 2. Captura o clique no Canvas convertendo Pixels para Metros (usando a vista atual)
+    canvas.addEventListener("click", async (ev) => {
+        const chkModoClique = document.getElementById("pr-modo-clique");
+        
+        // Só navega se o checkbox de clique estiver ativado no HTML (se existir)
+        if (chkModoClique && !chkModoClique.checked) return;
+        if (!vista) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+
+        // Coordenadas em pixels na resolução real do Canvas
+        const px = (ev.clientX - rect.left) * dpr;
+        const py = (ev.clientY - rect.top) * dpr;
+
+        // Conversão exata considerando a escala e o centro da câmera (vista)
+        const xMundo = vista.cx + (px - canvas.width / 2) / vista.escala;
+        const yMundo = vista.cy - (py - canvas.height / 2) / vista.escala;
+
+        try {
+            saidaTrajetoria.textContent = `Calculando rota até X=${xMundo.toFixed(2)}m, Y=${yMundo.toFixed(2)}m…`;
+            
+            // Chama a função da API que você declarou no painel.js
+            const resultado = await window.ParametrosRobo.simularPonto(xMundo, yMundo);
+            
+            // Notifica a tela para rodar a animação das amostras recebidas
+            window.dispatchEvent(new CustomEvent("executarAmostrasRobo", {
+                detail: { amostras: resultado.amostras }
+            }));
+        } catch (erro) {
+            saidaTrajetoria.textContent = `Erro na navegação: ${erro.message}`;
+            console.error(erro);
+        }
+    });
+
     reiniciar();
     cicloProdutor();
     requestAnimationFrame(quadro);

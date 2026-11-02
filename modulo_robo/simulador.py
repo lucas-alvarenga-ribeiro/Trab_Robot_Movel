@@ -15,6 +15,9 @@ import math
 
 from .modelos import obter_modelo
 from .parametros import ParametrosRobo
+import math
+
+from .controlador import ControladorPonto  # <-- ADICIONE ESTA LINHA AQUI
 
 
 class Robo:
@@ -106,6 +109,26 @@ class Robo:
         return {
             "posicao": math.hypot(xr - xo, yr - yo),
             "orientacao": math.atan2(math.sin(tr - to), math.cos(tr - to)),
+        }
+    def simular_ponto(self, x_alvo, y_alvo, v_max=0.5, max_passos=5000):
+        controlador = ControladorPonto(x_alvo, y_alvo)
+        dt = self.parametros.passo_tempo
+        amostras = [self.estado()]
+
+        for _ in range(max_passos):
+            v, w = controlador.calcular_comandos(self.pose_odometria, v_max=v_max)
+            w_d, w_e = self.velocidades_rodas(v, w)
+            self.passo(w_d, w_e, dt)
+            amostras.append(self.estado())
+
+            if v == 0.0 and w == 0.0:
+                break
+
+        return {
+            "modelo": self.modelo.chave,
+            "parametros": self.parametros.para_dict(),
+            "amostras": amostras,
+            "erro_final": self.erro_odometria(),
         }
 
 

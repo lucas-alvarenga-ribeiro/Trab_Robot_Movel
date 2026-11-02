@@ -88,3 +88,19 @@ def passo():
         return jsonify(estado)
     except (ValueError, KeyError, TypeError) as erro:
         return jsonify({"erro": str(erro)}), 400
+
+@robo_bp.post("/simular-ponto")
+def simular_ponto():
+    """Recebe x_alvo e y_alvo e executa a simulação em malha fechada."""
+    dados = request.get_json(silent=True) or {}
+    try:
+        parametros = ParametrosRobo.de_dict(dados.get("parametros"))
+        robo = Robo(parametros, modelo=dados.get("modelo", "diferencial"))
+        
+        x_alvo = float(dados.get("x_alvo", 0.0))
+        y_alvo = float(dados.get("y_alvo", 0.0))
+        
+        resultado = robo.simular_ponto(x_alvo, y_alvo)
+        return jsonify(resultado)
+    except (ValueError, KeyError, TypeError) as erro:
+        return jsonify({"erro": str(erro)}), 400

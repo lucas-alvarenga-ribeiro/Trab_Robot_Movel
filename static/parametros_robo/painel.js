@@ -144,11 +144,34 @@ const camposRodas = document.getElementById("pr-campos-rodas");
     atualizarInfoRaios();
     carregarModelos();
 
+    // ------------------------------------------------------------------ //
+    // Nova função de simulação em malha fechada (Driving to a Point)
+    // ------------------------------------------------------------------ //
+    async function simularPonto(xAlvo, yAlvo) {
+        const resposta = await fetch(`${API}/simular-ponto`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                parametros: obterParametros(),
+                modelo: obterModelo(),
+                x_alvo: xAlvo,
+                y_alvo: yAlvo,
+            }),
+        });
+        const resultado = await resposta.json();
+        if (!resposta.ok) throw new Error(resultado.erro || "Falha na simulação por ponto");
+        
+        // Notifica ouvintes registrados (ex: script.js para desenhar no Canvas)
+        ouvintes.forEach((fn) => fn(resultado));
+        return resultado;
+    }
+
     window.ParametrosRobo = {
         obterParametros,
         obterModelo,
         obterSegmentos,
         simular,
+        simularPonto, // <-- NOVO
         aoSimular: (fn) => ouvintes.push(fn),
     };
 })();
@@ -531,3 +554,4 @@ window.addEventListener("reiniciarRobo", () => {
 // Configuração inicial
 atualizarTitulosGraficos();
 desenharGraficos();
+
