@@ -17,6 +17,10 @@ const modoRodas = document.getElementById("pr-modo-rodas");
 const camposRobo = document.getElementById("pr-campos-robo");
 const camposRodas = document.getElementById("pr-campos-rodas");
 
+const blocoWaypoints = document.getElementById("pr-waypoints");
+const corpoWaypoints = document.getElementById("pr-corpo-waypoints");
+const btnAddWaypoint = document.getElementById("pr-add-waypoint");
+
 (function () {
     "use strict";
 
@@ -128,15 +132,40 @@ const camposRodas = document.getElementById("pr-campos-rodas");
     form.addEventListener("input", atualizarInfoRaios);
     seletorModelo.addEventListener("change", atualizarDescricaoModelo);
     seletorTrajetoria.addEventListener("change", () => {
-        blocoSegmentos.hidden = seletorTrajetoria.value !== "personalizada";
+    // Mantém o que você já tinha e adiciona esta linha:
+        blocoWaypoints.hidden = seletorTrajetoria.value !== "caminho_waypoints";
     });
     document.getElementById("pr-add-segmento").addEventListener("click", () => adicionarSegmento());
     form.addEventListener("submit", async (ev) => {
         ev.preventDefault();
-        const segmentos = await obterSegmentos();
-        window.dispatchEvent(new CustomEvent("executarTrajetoriaRobo", {
-            detail: { segmentos: segmentos },
-        }));
+
+        // 1. Execução do Caminho por Waypoints (x, y)
+        if (seletorTrajetoria.value === "caminho_waypoints") {
+            const caminho = extrairWaypoints();
+            if (caminho.length === 0) {
+                alert("Adicione pelo menos um ponto no caminho.");
+                return;
+            }
+            try {
+                const resultado = await simularCaminho(caminho);
+                window.dispatchEvent(new CustomEvent("executarAmostrasRobo", {
+                    detail: { amostras: resultado.amostras }
+                }));
+            } catch (erro) {
+                alert(`Erro no caminho: ${erro.message}`);
+            }
+            return;
+        }
+
+        // 2. Execução das Trajetórias Padrão (Quadrado, Círculo, Reta, Personalizada)
+        try {
+            const segmentos = await obterSegmentos();
+            window.dispatchEvent(new CustomEvent("executarTrajetoriaRobo", {
+                detail: { segmentos: segmentos }
+            }));
+        } catch (erro) {
+            alert(`Erro na trajetória: ${erro.message}`);
+        }
     });
 
     adicionarSegmento(0.3, 0, 3);
@@ -144,13 +173,94 @@ const camposRodas = document.getElementById("pr-campos-rodas");
     atualizarInfoRaios();
     carregarModelos();
 
+    function criarLinhaWaypoint(x = 0.0, y = 0.0) {
+        if (!corpoWaypoints) return;
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td><input type="number" step="0.1" class="pr-input-x" value="${x}"></td>
+            <td><input type="number" step="0.1" class="pr-input-y" value="${y}"></td>
+            <td><button type="button" class="pr-btn-remover" title="Remover ponto">✕</button></td>
+        `;
+        tr.querySelector(".pr-btn-remover").addEventListener("click", () => tr.remove());
+        corpoWaypoints.appendChild(tr);
+    }
+
+    if (btnAddWaypoint) {
+        btnAddWaypoint.addEventListener("click", () => criarLinhaWaypoint(0.0, 0.0));
+    }
+
+    function extrairWaypoints() {
+        if (!corpoWaypoints) return [];
+        const pontos = [];
+        corpoWaypoints.querySelectorAll("tr").forEach((tr) => {
+            const inputX = tr.querySelector(".pr-input-x");
+            const inputY = tr.querySelector(".pr-input-y");
+            if (inputX && inputY) {
+                pontos.push([
+                    parseFloat(inputX.value) || 0.0,
+                    parseFloat(inputY.value) || 0.0,
+                ]);
+            }
+        });
+        return pontos;
+    }
+
+    // ------------------------------------------------------------------ //
+    // Nova função de simulação em malha fechada (Driving to a Point)
+    // ------------------------------------------------------------------ //
+    async function simularPonto(xAlvo, yAlvo, poseReal, poseOdometria) {
+        const resposta = await fetch(`${API}/simular-ponto`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                parametros: obterParametros(),
+                modelo: obterModelo(),
+                x_alvo: xAlvo,
+                y_alvo: yAlvo,
+                pose_real: poseReal || [0, 0, 0],
+                pose_odometria: poseOdometria || [0, 0, 0],
+            }),
+        });
+        const resultado = await resposta.json();
+        if (!resposta.ok) throw new Error(resultado.erro || "Falha na simulação por ponto");
+
+        ouvintes.forEach((fn) => fn(resultado));
+        return resultado;
+    }
+    async function simularCaminho(caminho) {
+        const resposta = await fetch(`${API}/simular-caminho`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                parametros: obterParametros(),
+                modelo: obterModelo(),
+                caminho: caminho,
+            }),
+        });
+        const resultado = await resposta.json();
+        if (!resposta.ok) throw new Error(resultado.erro || "Falha ao simular caminho");
+        return resultado;
+    }
+
+    // No window.ParametrosRobo adicione simularCaminho:
     window.ParametrosRobo = {
         obterParametros,
         obterModelo,
         obterSegmentos,
         simular,
+        simularPonto,
+        simularCaminho, // <-- NOVO
         aoSimular: (fn) => ouvintes.push(fn),
     };
+
+    // Passo 6: Cria as 4 caixas de texto iniciais ao carregar a página
+    if (corpoWaypoints && corpoWaypoints.children.length === 0) {
+        criarLinhaWaypoint(1.0, 0.0);
+        criarLinhaWaypoint(1.0, 1.0);
+        criarLinhaWaypoint(0.0, 1.0);
+        criarLinhaWaypoint(0.0, 0.0);
+    }
+
 })();
 
 
@@ -321,7 +431,6 @@ const ctxGrafico2 = canvasGrafico2.getContext("2d");
 
 // Histórico das duas variáveis exibidas
 const historicoGraficos = [[], []];
-
 const intervaloGrafico = 0.1; // 100 ms
 const maxPontosGrafico = 120; // 12 segundos de histórico
 
@@ -531,3 +640,9 @@ window.addEventListener("reiniciarRobo", () => {
 // Configuração inicial
 atualizarTitulosGraficos();
 desenharGraficos();
+
+// ... todo o restante do código do seu painel.js ...
+
+    
+
+
