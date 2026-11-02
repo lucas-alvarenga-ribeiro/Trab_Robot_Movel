@@ -43,14 +43,17 @@
         </fieldset>
 
         <fieldset>
-            <legend>Trajetória</legend>
+            <legend>Trajetória / Caminho</legend>
+            
             <select name="trajetoria" id="pr-trajetoria">
                 <option value="quadrado">Quadrado 2 m (UMBmark)</option>
                 <option value="circulo">Círculo r = 1 m</option>
                 <option value="reta">Reta 2 m</option>
-                <option value="personalizada">Personalizada</option>
+                <option value="personalizada">Segmentos de Velocidade (v, ω)</option>
+                <option value="caminho_waypoints">Caminho por Waypoints </option>
             </select>
 
+            <!-- Tabela para Segmentos Abertos (v, w, duracao) -->
             <div id="pr-segmentos" hidden>
                 <table class="pr-tabela">
                     <thead><tr><th>v (m/s)</th><th>ω (rad/s)</th><th>duração (s)</th><th></th></tr></thead>
@@ -58,14 +61,32 @@
                 </table>
                 <button type="button" id="pr-add-segmento">+ segmento</button>
             </div>
-            <button type="submit" class="pr-botao">Executar trajetória</button>
+
+            <!-- TABELA COM CAIXAS DE TEXTO PARA OS WAYPOINTS (X, Y) -->
+            <div id="pr-waypoints" hidden style="margin-top: 10px;">
+                <table class="pr-tabela">
+                    <thead>
+                        <tr>
+                            <th>X (m)</th>
+                            <th>Y (m)</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="pr-corpo-waypoints">
+                        <!-- As caixas de texto <input> entram aqui dinamicamente -->
+                    </tbody>
+                </table>
+                <button type="button" id="pr-add-waypoint" style="margin-top: 5px;">+ Adicionar Ponto (X, Y)</button>
+            </div>
+
+            <button type="submit" class="pr-botao" style="margin-top: 10px;">Executar trajetória</button>
 
             <div class="opcao-clique" style="margin-top: 8px;">
                 <label style="cursor: pointer; user-select: none;">
                     <input type="checkbox" id="pr-modo-clique"> 
-                    🎯 <strong>Navegar ao clicar no gráfico</strong>
+                    🎯 <strong>Navegar ao clicar no gráfico (Driving to a Point)</strong>
                 </label>
-            </div>   
+            </div>     
         </fieldset>
     </form>
 

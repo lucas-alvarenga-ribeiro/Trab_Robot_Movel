@@ -91,18 +91,23 @@ def passo():
 
 @robo_bp.post("/simular-ponto")
 def simular_ponto():
-    """Recebe x_alvo, y_alvo e a pose_inicial atual para navegar a partir de onde parou."""
+    """Calcula o trecho até o ponto desejado a partir das poses atuais (real e odometria)."""
     dados = request.get_json(silent=True) or {}
     try:
         parametros = ParametrosRobo.de_dict(dados.get("parametros"))
-        pose_inicial = dados.get("pose_inicial", (0.0, 0.0, 0.0))
-        
-        # Instancia o robô na posição atual em que ele se encontra
-        robo = Robo(parametros, modelo=dados.get("modelo", "diferencial"), pose_inicial=pose_inicial)
-        
+        pose_real = dados.get("pose_real", [0.0, 0.0, 0.0])
+        pose_odometria = dados.get("pose_odometria", [0.0, 0.0, 0.0])
+
+        robo = Robo(
+            parametros,
+            modelo=dados.get("modelo", "diferencial"),
+            pose_real=pose_real,
+            pose_odometria=pose_odometria,
+        )
+
         x_alvo = float(dados.get("x_alvo", 0.0))
         y_alvo = float(dados.get("y_alvo", 0.0))
-        
+
         resultado = robo.simular_ponto(x_alvo, y_alvo)
         return jsonify(resultado)
     except (ValueError, KeyError, TypeError) as erro:

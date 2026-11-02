@@ -1,29 +1,13 @@
-/* Motor da simulação em tempo real (tela única).
- *
- * O cálculo e o desenho são separados para a animação ficar fluida:
- *   - produtor: pede ao servidor (/api/robo/passo) os próximos trechos do
- *     movimento, com as poses intermediárias, e guarda num buffer que fica
- *     um pouco à frente do relógio da simulação;
- *   - animação: a cada quadro da tela (requestAnimationFrame, ~60 fps) avança
- *     o relógio e interpola a pose entre as amostras do buffer.
- *
- * O comando vem de uma de duas fontes:
- *   - controle manual  (evento "atualizarVelocidadesRobo" {v, w, rodas})
- *   - trajetória       (evento "executarTrajetoriaRobo" {segmentos})
- */
-
-let caminhoAtual = []; 
+/* Motor da simulação em tempo real (tela única). */
 (function () {
     "use strict";
 
-    // O tamanho de cada pedido ao servidor e a folga do buffer se adaptam à
-    // latência medida: pedidos lentos → trechos maiores, para nunca faltar pose.
-    const TRECHO_MIN = 0.1;      // s de relógio (× fator)
+    const TRECHO_MIN = 0.1;
     const TRECHO_MAX = 1.0;
-    const PERIODO_INFO = 0.1;    // atualização de texto e gráficos (s de relógio)
-    const MAX_RASTRO = 20000;    // pontos guardados por rastro
-    const DIST_RASTRO = 0.002;   // distância mínima entre pontos do rastro (m)
-    const VISTA_MINIMA = 3;      // largura mínima mostrada (m)
+    const PERIODO_INFO = 0.1;
+    const MAX_RASTRO = 20000;
+    const DIST_RASTRO = 0.002;
+    const VISTA_MINIMA = 3;
 
     const canvas = document.getElementById("pr-mundo");
     const ctx = canvas.getContext("2d");
@@ -32,19 +16,18 @@ let caminhoAtual = [];
     const saidaEstado = document.getElementById("pr-estado-tempo-real");
     const saidaTrajetoria = document.getElementById("pr-estado-trajetoria");
 
-    let estado;                  // pose mostrada, rastros e limites
-    let buffer;                  // amostras {t, real, odometria, cmd}; buffer[0] é a última já passada
+    let estado;
+    let buffer;
     let comando = { v: 0, w: 0, rodas: null };
-    let fila = [];              // segmentos restantes da trajetória (consumidos pelo produtor)
+    let fila = [];
     let trajetoriaEmCurso = false;
     let pausado = false;
-    let geracao = 0;             // descarta respostas que chegam depois de reiniciar/mudar comando
-    let vista = null;            // vista atual (suavizada)
-    let latencia = 0.1;          // média móvel do tempo de resposta do servidor (s)
+    let geracao = 0;
+    let vista = null;
+    let latencia = 0.1;
 
     const trecho = () => Math.min(TRECHO_MAX, Math.max(TRECHO_MIN, 2 * latencia));
     const antecedencia = () => trecho() + latencia + 0.1;
-
     const fator = () => Number(seletorFator.value);
     const ultima = () => buffer[buffer.length - 1];
 
@@ -53,7 +36,7 @@ let caminhoAtual = [];
     }
 
     // ------------------------------------------------------------------ //
-    // Controle
+    // Controle de Estado
     // ------------------------------------------------------------------ //
     function reiniciar() {
         geracao++;
@@ -75,7 +58,6 @@ let caminhoAtual = [];
         mostrarEstado();
     }
 
-    // Descarta o que foi calculado à frente, para um novo comando valer na hora
     function cortarBuffer() {
         geracao++;
         buffer = [amostra(estado.t, estado.poseReal, estado.poseOdometria, comando)];
@@ -86,8 +68,8 @@ let caminhoAtual = [];
         botaoPausar.textContent = pausado ? "▶ Continuar" : "⏸ Pausar";
     }
 
+    // Evento 1: Controle Manual por Velocidades
     window.addEventListener("atualizarVelocidadesRobo", (evento) => {
-        // Comando manual interrompe uma trajetória em andamento
         saidaTrajetoria.textContent = trajetoriaEmCurso ? "Trajetória interrompida pelo controle manual." : "";
         fila = [];
         trajetoriaEmCurso = false;
@@ -100,8 +82,8 @@ let caminhoAtual = [];
         definirPausa(false);
     });
 
+    // Evento 2: Trajetórias do Formulário (Reta, Círculo, Quadrado)
     window.addEventListener("executarTrajetoriaRobo", (evento) => {
-        // Toda trajetória parte da origem, para comparar real × odometria
         reiniciar();
         fila = evento.detail.segmentos.map((s) => ({
             v: Number(s.v), w: Number(s.w), restante: Number(s.duracao),
@@ -112,14 +94,33 @@ let caminhoAtual = [];
         definirPausa(false);
     });
 
-    botaoPausar.addEventListener("click", () => definirPausa(!pausado));
-    document.getElementById("pr-reiniciar").addEventListener("click", () => {
-        caminhoAtual = []; // Limpa os waypoints só quando você clicar no botão Reiniciar
-        reiniciar();
+    // Recebe e executa o caminho por waypoints enviado pelo painel
+    window.addEventListener("executarAmostrasRobo", (evento) => {
+        const amostrasRecebidas = evento.detail.amostras || [];
+        if (amostrasRecebidas.length === 0) return;
+
+        geracao++;
+        fila = [];
+        comando = { v: 0, w: 0, rodas: null };
+        trajetoriaEmCurso = true;
+
+        // Atualiza o buffer com as amostras calculadas pelo Python
+        buffer = amostrasRecebidas.map((a) =>
+            amostra(a.t, a.real, a.odometria, { v: 0, w: 0, rodas: null })
+        );
+
+        estado.t = 0;
+        const tempoTotal = buffer[buffer.length - 1].t;
+        saidaTrajetoria.textContent = `Navegando pelo caminho (${tempoTotal.toFixed(1)} s simulados)…`;
+        definirPausa(false);
     });
 
+    // Botões Físicos
+    botaoPausar.addEventListener("click", () => definirPausa(!pausado));
+    document.getElementById("pr-reiniciar").addEventListener("click", reiniciar);
+
     // ------------------------------------------------------------------ //
-    // Produtor: calcula trechos à frente do relógio
+    // Produtor de Passos em Tempo Real (/api/robo/passo)
     // ------------------------------------------------------------------ //
     function comandoNulo(c) {
         if (c.rodas) return c.rodas.w_d === 0 && c.rodas.w_e === 0;
@@ -153,19 +154,18 @@ let caminhoAtual = [];
 
         const segmento = fila[0];
         const cmd = segmento ? { v: segmento.v, w: segmento.w, rodas: null } : comando;
-        if (!segmento && comandoNulo(cmd)) return false;  // parado: nada a calcular
+        if (!segmento && comandoNulo(cmd)) return false;
 
         let dt = trecho() * fator();
         if (segmento) dt = Math.min(dt, segmento.restante);
 
         let novas;
         if (comandoNulo(cmd)) {
-            // Segmento parado (v = ω = 0) só consome tempo
             novas = [amostra(fim.t + dt, fim.real, fim.odometria, cmd)];
         } else {
             const minhaGeracao = geracao;
             novas = await pedirTrecho(fim, cmd, dt);
-            if (minhaGeracao !== geracao) return true;  // comando mudou enquanto calculava
+            if (minhaGeracao !== geracao) return true;
         }
 
         buffer.push(...novas);
@@ -189,7 +189,7 @@ let caminhoAtual = [];
     }
 
     // ------------------------------------------------------------------ //
-    // Animação: avança o relógio e interpola a pose a cada quadro
+    // Animação e Renderização
     // ------------------------------------------------------------------ //
     function interpolarAngulo(a, b, f) {
         const d = Math.atan2(Math.sin(b - a), Math.cos(b - a));
@@ -215,7 +215,6 @@ let caminhoAtual = [];
             estado.t = Math.min(estado.t + dtRelogio * fator(), ultima().t);
         }
 
-        // Amostras já ultrapassadas entram no rastro
         while (buffer.length > 1 && buffer[1].t <= estado.t) {
             buffer.shift();
             adicionarAoRastro(estado.rastroReal, buffer[0].real);
@@ -274,7 +273,6 @@ let caminhoAtual = [];
         avancarRelogio(dtRelogio);
         desenhar(dtRelogio);
 
-        // Texto e gráficos não precisam de 60 fps
         acumuladoInfo += dtRelogio;
         if (acumuladoInfo >= PERIODO_INFO) {
             acumuladoInfo %= PERIODO_INFO;
@@ -290,7 +288,7 @@ let caminhoAtual = [];
     }
 
     // ------------------------------------------------------------------ //
-    // Desenho (coordenadas do mundo em metros, eixo y para cima)
+    // Desenho no Canvas
     // ------------------------------------------------------------------ //
     function ajustarResolucao() {
         const dpr = window.devicePixelRatio || 1;
@@ -315,7 +313,6 @@ let caminhoAtual = [];
         return { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, escala };
     }
 
-    // A vista se aproxima do alvo aos poucos, sem saltos de zoom
     function suavizarVista(dtRelogio) {
         const alvo = vistaAlvo();
         if (!vista) {
@@ -329,7 +326,6 @@ let caminhoAtual = [];
     }
 
     function aplicarVista() {
-        // x_tela = centro + (x - cx)·escala ;  y_tela = centro - (y - cy)·escala
         ctx.setTransform(
             vista.escala, 0, 0, -vista.escala,
             canvas.width / 2 - vista.cx * vista.escala,
@@ -353,7 +349,6 @@ let caminhoAtual = [];
         }
         ctx.stroke();
 
-        // Eixos na origem
         ctx.strokeStyle = "#bbb";
         ctx.beginPath();
         ctx.moveTo(vista.cx - metadeL, 0); ctx.lineTo(vista.cx + metadeL, 0);
@@ -362,7 +357,6 @@ let caminhoAtual = [];
         return passo;
     }
 
-    // O rastro termina na pose interpolada, para acompanhar o robô sem degraus
     function desenharRastro(rastro, poseAtual, cor, tracejado) {
         ctx.strokeStyle = cor;
         ctx.lineWidth = 2 / vista.escala;
@@ -374,13 +368,11 @@ let caminhoAtual = [];
         ctx.setLineDash([]);
     }
 
-    // Mesmo visual do robô original: corpo em meia-lua (frente arredondada)
-    // e rodas laterais, em escala real com os parâmetros do painel.
     function desenharRobo(pose, fantasma) {
         const p = window.ParametrosRobo.obterParametros();
         const L = p.distancia_rodas;
         const D = p.diametro_roda;
-        const s = L * 0.85;              // largura do corpo (entre as rodas)
+        const s = L * 0.85;
         const larguraRoda = Math.max(D * 0.25, 0.015);
 
         ctx.save();
@@ -388,13 +380,13 @@ let caminhoAtual = [];
         ctx.rotate(pose[2]);
         ctx.lineWidth = 2 / vista.escala;
 
-        // Corpo: traseira reta e frente em semicírculo (x = frente, y = esquerda)
         ctx.beginPath();
         ctx.moveTo(-s / 2, s / 2);
         ctx.lineTo(0, s / 2);
         ctx.arc(0, 0, s / 2, Math.PI / 2, -Math.PI / 2, true);
         ctx.lineTo(-s / 2, -s / 2);
         ctx.closePath();
+
         if (fantasma) {
             ctx.setLineDash([4 / vista.escala, 3 / vista.escala]);
             ctx.strokeStyle = "#d9534f";
@@ -406,7 +398,6 @@ let caminhoAtual = [];
             ctx.fill();
             ctx.stroke();
 
-            // Rodas
             ctx.fillStyle = "#333";
             ctx.strokeStyle = "#111";
             [L / 2, -L / 2].forEach((y) => {
@@ -437,33 +428,12 @@ let caminhoAtual = [];
         ctx.fillText(`grade: ${passo} m`, 8, canvas.height - 8);
     }
 
-    // 1. Recebe as amostras do controlador em malha fechada e carrega no buffer da animação
-// 1. Recebe as amostras e continua a animação a partir do tempo e posição atuais
-    window.addEventListener("executarAmostrasRobo", (evento) => {
-        const amostrasRecebidas = evento.detail.amostras || [];
-        if (amostrasRecebidas.length === 0) return;
-
-        fila = [];
-        trajetoriaEmCurso = true;
-
-        // Mantém o tempo contínuo sem zerar a simulação
-        const tInicial = estado ? estado.t : 0;
-        const tOffset = amostrasRecebidas[0].t;
-
-        buffer = amostrasRecebidas.map((a) =>
-            amostra(tInicial + (a.t - tOffset), a.real, a.odometria, { v: 0, w: 0, rodas: null })
-        );
-
-        const tempoAdicional = buffer[buffer.length - 1].t - tInicial;
-        saidaTrajetoria.textContent = `Navegando até o ponto (+${tempoAdicional.toFixed(1)} s simulados)…`;
-        definirPausa(false);
-    });
-
-    // 2. Captura o clique no Canvas checando rigorosamente o checkbox
+    // ------------------------------------------------------------------ //
+    // Evento de Clique no Canvas (Navegação Incremental por Ponto)
+    // ------------------------------------------------------------------ //
     canvas.addEventListener("click", async (ev) => {
-        const chkModoClique = document.getElementById("pr-modo-clique");
+        const chkModoClique = document.getElementById("pr-modo-clique") || document.getElementById("chk-clique-alvo");
         
-        // Exige explicitamente que o checkbox exista E esteja marcado
         if (!chkModoClique || !chkModoClique.checked) return;
         if (!vista) return;
 
@@ -473,22 +443,36 @@ let caminhoAtual = [];
         const px = (ev.clientX - rect.left) * dpr;
         const py = (ev.clientY - rect.top) * dpr;
 
-        // Conversão de pixels para metros no mundo
         const xMundo = vista.cx + (px - canvas.width / 2) / vista.escala;
         const yMundo = vista.cy - (py - canvas.height / 2) / vista.escala;
 
-        // Lê a pose atual do robô (pela odometria)
-        const poseAtual = estado ? estado.poseOdometria : [0, 0, 0];
+        // Pega a última pose/tempo no fim do buffer para emendar sem dar saltos
+        const ultimaAmostra = buffer[buffer.length - 1];
+        const poseRealInicio = ultimaAmostra ? ultimaAmostra.real : estado.poseReal;
+        const poseOdometriaInicio = ultimaAmostra ? ultimaAmostra.odometria : estado.poseOdometria;
+        const tInicio = ultimaAmostra ? ultimaAmostra.t : estado.t;
 
         try {
-            saidaTrajetoria.textContent = `Calculando rota para X=${xMundo.toFixed(2)}m, Y=${yMundo.toFixed(2)}m…`;
+            saidaTrajetoria.textContent = `Calculando trecho até X=${xMundo.toFixed(2)}m, Y=${yMundo.toFixed(2)}m…`;
             
-            // Envia o ponto desejado e a posição atual do robô
-            const resultado = await window.ParametrosRobo.simularPonto(xMundo, yMundo, poseAtual);
-            
-            window.dispatchEvent(new CustomEvent("executarAmostrasRobo", {
-                detail: { amostras: resultado.amostras }
-            }));
+            const resultado = await window.ParametrosRobo.simularPonto(
+                xMundo, 
+                yMundo, 
+                poseRealInicio, 
+                poseOdometriaInicio
+            );
+
+            const novasAmostras = resultado.amostras || [];
+            if (novasAmostras.length > 0) {
+                // Descarta a 1ª amostra (duplicada) e emenda o tempo no buffer
+                const amostrasFormatadas = novasAmostras.slice(1).map((a) =>
+                    amostra(tInicio + a.t, a.real, a.odometria, { v: 0, w: 0, rodas: null })
+                );
+
+                buffer.push(...amostrasFormatadas);
+                trajetoriaEmCurso = true;
+                definirPausa(false);
+            }
         } catch (erro) {
             saidaTrajetoria.textContent = `Erro na navegação: ${erro.message}`;
             console.error(erro);

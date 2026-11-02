@@ -21,23 +21,16 @@ from .controlador import ControladorPonto, ControladorCaminho  # <-- ADICIONE ES
 
 
 class Robo:
-    def __init__(self, parametros=None, modelo="diferencial", pose_inicial=(0.0, 0.0, 0.0)):
+    def __init__(self, parametros=None, modelo="diferencial", pose_inicial=(0.0, 0.0, 0.0), pose_real=None, pose_odometria=None):
         self.parametros = parametros or ParametrosRobo()
         self.modelo = obter_modelo(modelo)
         self.tempo = 0.0
-        self.pose_real = tuple(pose_inicial)
-        self.pose_odometria = tuple(pose_inicial)
+        
+        # Suporta pose_inicial (legado do /passo) e pose_real/pose_odometria (navegação por ponto)
+        self.pose_real = tuple(pose_real if pose_real is not None else pose_inicial)
+        self.pose_odometria = tuple(pose_odometria if pose_odometria is not None else self.pose_real)
 
-    # ------------------------------------------------------------------ #
-    # Comandos
-    # ------------------------------------------------------------------ #
     def velocidades_rodas(self, v, w):
-        """Converte (v, ω) desejados em velocidades das rodas (rad/s).
-
-        O controlador só conhece o raio nominal, por isso o erro de raio não
-        é compensado. As velocidades são saturadas preservando a razão entre
-        as rodas (mantém a curvatura pedida).
-        """
         p = self.parametros
         w_d = (v + w * p.distancia_rodas / 2) / p.raio_nominal
         w_e = (v - w * p.distancia_rodas / 2) / p.raio_nominal
@@ -50,14 +43,15 @@ class Robo:
         return w_d, w_e
 
     def passo(self, w_d, w_e, dt=None):
-        """Avança um passo de tempo com as velocidades das rodas dadas."""
         p = self.parametros
         dt = dt or p.passo_tempo
         L = p.distancia_rodas
         self.pose_real = self.modelo.atualizar(
-            self.pose_real, w_d, w_e, p.raio_direita, p.raio_esquerda, L, dt)
+            self.pose_real, w_d, w_e, p.raio_direita, p.raio_esquerda, L, dt
+        )
         self.pose_odometria = self.modelo.atualizar(
-            self.pose_odometria, w_d, w_e, p.raio_nominal, p.raio_nominal, L, dt)
+            self.pose_odometria, w_d, w_e, p.raio_nominal, p.raio_nominal, L, dt
+        )
         self.tempo += dt
         return self.estado()
 
@@ -68,15 +62,7 @@ class Robo:
             "odometria": list(self.pose_odometria),
         }
 
-    # ------------------------------------------------------------------ #
-    # Simulação completa
-    # ------------------------------------------------------------------ #
     def simular(self, segmentos, max_pontos=2000):
-        """Executa uma lista de segmentos {v, w, duracao}.
-
-        Retorna as amostras da trajetória (limitadas a ~max_pontos) e o erro
-        final entre a pose real e a estimada pela odometria.
-        """
         dt = self.parametros.passo_tempo
         passos_por_segmento = [max(1, round(float(s["duracao"]) / dt)) for s in segmentos]
         total = sum(passos_por_segmento)
@@ -103,13 +89,6 @@ class Robo:
             "erro_final": self.erro_odometria(),
         }
 
-    def erro_odometria(self):
-        xr, yr, tr = self.pose_real
-        xo, yo, to = self.pose_odometria
-        return {
-            "posicao": math.hypot(xr - xo, yr - yo),
-            "orientacao": math.atan2(math.sin(tr - to), math.cos(tr - to)),
-        }
     def simular_ponto(self, x_alvo, y_alvo, v_max=0.5, max_passos=5000):
         controlador = ControladorPonto(x_alvo, y_alvo)
         dt = self.parametros.passo_tempo
@@ -129,6 +108,14 @@ class Robo:
             "parametros": self.parametros.para_dict(),
             "amostras": amostras,
             "erro_final": self.erro_odometria(),
+        }
+
+    def erro_odometria(self):
+        xr, yr, tr = self.pose_real
+        xo, yo, to = self.pose_odometria
+        return {
+            "posicao": math.hypot(xr - xo, yr - yo),
+            "orientacao": math.atan2(math.sin(tr - to), math.cos(tr - to)),
         }
     def simular_caminho(self, caminho, v_max=0.5, max_passos=20000):
         """Simula o robô seguindo uma lista de waypoints em malha fechada."""
