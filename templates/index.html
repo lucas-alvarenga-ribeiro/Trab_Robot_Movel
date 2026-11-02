@@ -12,14 +12,7 @@
 
     <h1>Robô Pioneer</h1>
 
-    <div class="area-robo">
-    <div class="robo">
-        <div class="roda roda-esquerda"></div>
-        <div class="corpo-robo"></div>
-        <div class="roda roda-direita"></div>
-    </div>
-</div>
-
+    {# O robô agora é desenhado no canvas do painel (static/script.js) #}
     {% include "parametros_robo/painel.html" %}
 <script src="{{ url_for('static', filename='script.js') }}"></script>
 
